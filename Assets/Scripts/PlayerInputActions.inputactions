@@ -1,0 +1,24 @@
+{
+    "name": "PlayerInputActions",
+    "maps": [
+        {
+            "name": "Player",
+            "actions": [
+                { "name": "Move", "type": "Value", "expectedControlType": "Vector2" },
+                { "name": "Grab", "type": "Button", "expectedControlType": "Button" }
+            ],
+            "bindings": [
+                {
+                    "name": "2D Vector", "id": "movecomposite", "path": "2DVector", "action": "Move", "isComposite": true,
+                    "bindings": [
+                        { "name": "Up", "path": "<Keyboard>/upArrow", "action": "Move", "isPartOfComposite": true },
+                        { "name": "Down", "path": "<Keyboard>/downArrow", "action": "Move", "isPartOfComposite": true },
+                        { "name": "Left", "path": "<Keyboard>/leftArrow", "action": "Move", "isPartOfComposite": true },
+                        { "name": "Right", "path": "<Keyboard>/rightArrow", "action": "Move", "isPartOfComposite": true }
+                    ]
+                },
+                { "path": "<Keyboard>/space", "action": "Grab" }
+            ]
+        }
+    ]
+}
