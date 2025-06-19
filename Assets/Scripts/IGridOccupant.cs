@@ -6,6 +6,6 @@ using static UnityEngine.RuleTile.TilingRuleOutput;
 /// </summary>
 public interface IGridOccupant
 {
-    Vector2Int GridPosition { get; }
+    Vector2Int GridPos { get; }
     bool ObstructsMovement { get; }
 }

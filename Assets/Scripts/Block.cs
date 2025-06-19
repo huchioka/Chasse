@@ -20,16 +20,18 @@ public class Block :  GridOccupantBase
 
     void Start()
     {
-        Initialize(GridManager.WorldToGrid(transform.position), Team);
+        Vector2Int startPos = GridManager.WorldToGrid(transform.position);
+        Initialize(startPos, Team);
+        Debug.Log($"[Block] a block initialized at {startPos}");
     }
 
     public void Initialize(Vector2Int pos, Team team)
     {
-        GridPosition = pos;
+        GridPos = pos;
         Team = team;
         spriteRenderer.color = team.TeamColor;
-        transform.position = GridManager.GridToWorld(GridPosition);
-        GridManager.Instance.Register(this, GridPosition);
+        transform.position = GridManager.GridToWorld(GridPos);
+        GridManager.Instance.Register(this, GridPos);
     }
 
     public void SetGrabbedBy(Player player)
@@ -43,5 +45,5 @@ public class Block :  GridOccupantBase
         spriteRenderer.color = newTeam.TeamColor;
     }
 
-    public override string ToString() => $"Block({name}, {GridPosition}, Team: {Team})";
+    public override string ToString() => $"Block({name}, {GridPos}, Team: {Team})";
 }

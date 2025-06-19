@@ -15,10 +15,10 @@ public class Player : GridOccupantBase
     public override bool ObstructsMovement => true;
     public SpriteRenderer Renderer { get; private set; }
 
-    private Vector2Int facing = Vector2Int.right;
+    private Vector2Int FaceDir = Vector2Int.right;
     private float moveTimer;
     private Vector2Int? queuedMove;
-    private List<Block> grabbingBlocks = new(); // Direction → Block
+    private Block grabbingBlock = null;
 
     // Input Actions
     private PlayerInputActions inputActions;
@@ -32,37 +32,38 @@ public class Player : GridOccupantBase
         inputActions = new PlayerInputActions();
     }
 
-    private void Start()
+    private void Start()//player
     {
         Vector2 startPos = new(transform.position.x, transform.position.y);
         Vector2Int roundedStartPos = Vector2Int.RoundToInt(startPos);
         Initialize(roundedStartPos, Team);
     }
 
-    private void OnEnable()
+    private void OnEnable()//input
     {
         inputActions.Enable();
         inputActions.Player.Move.performed += OnMoveInput;
         inputActions.Player.Grab.performed += OnGrabInput;
     }
 
-    private void OnDisable()
+    private void OnDisable()//input
     {
         inputActions.Player.Move.performed -= OnMoveInput;
         inputActions.Player.Grab.performed -= OnGrabInput;
         inputActions.Disable();
     }
 
-    public void Initialize(Vector2Int startPos, Team team)
+    public void Initialize(Vector2Int startPos, Team team)//player
     {
-        GridPosition = startPos;
+        GridPos = startPos;
         Team = team;
-        transform.position = GridManager.GridToWorld(GridPosition);
+        transform.position = GridManager.GridToWorld(GridPos);
         Renderer.color = team.TeamColor;
-        GridManager.Instance.Register(this, GridPosition);
+        GridManager.Instance.Register(this, GridPos);
+        Debug.Log($"[Playera player successfully initialized]");
     }
 
-    private void Update()
+    private void Update()//input
     {
         if (moveTimer > 0)
         {
@@ -75,7 +76,7 @@ public class Player : GridOccupantBase
         }
     }
 
-    private void OnMoveInput(InputAction.CallbackContext context)
+    private void OnMoveInput(InputAction.CallbackContext context)//input
     {
         Vector2 dir = context.ReadValue<Vector2>();
         Vector2Int moveDir = new(Mathf.RoundToInt(dir.x), Mathf.RoundToInt(dir.y));
@@ -93,13 +94,11 @@ public class Player : GridOccupantBase
         TryMove(moveDir);
     }
 
-    private void TryMove(Vector2Int direction)
+    private void TryMove(Vector2Int moveDir)//actionmove
     {
-        Vector2Int targetPos = GridPosition + direction;
-
-        if (CanMoveToWithBlock(targetPos))
+        if (CanMoveWithBlock(moveDir))
         {
-            MoveWithBlock(direction);
+            MoveWithBlock(moveDir);
         }
 
         moveTimer = MoveCooldown;
@@ -112,57 +111,51 @@ public class Player : GridOccupantBase
     //</summary>
 
 
-    private void MoveWithBlock(Vector2Int moveDir)
+    private void MoveWithBlock(Vector2Int moveDir)//actionmove
     {
         Move(moveDir);
-
-        foreach (var block in grabbingBlocks)
-            block.Move(moveDir);
-        Debug.Log($"{this.name} move to {this.GridPosition}");
+        if (grabbingBlock != null)grabbingBlock.Move(moveDir);
+        Debug.Log($"{this.name} move to {this.GridPos}");
     }
 
-    private void GrabBlock(Block block)
+    private void GrabBlock(Block block)//actiongrab
     {
-        if (grabbingBlocks.Contains(block))
+        if (grabbingBlock != null)
         {
             Debug.Log($"[Player] a player is already grabbing the block.");
             return;
         }
-        grabbingBlocks.Add(block);
+        grabbingBlock = block;
         block.SetGrabbedBy(this);
         Debug.Log($"[Player] a player grabbed a block");
     }
 
-    private void ReleaseBlock(Block block)
+    private void ReleaseBlock(Block block)//actiongrab
     {
-        if (!grabbingBlocks.Contains(block))
+        if (grabbingBlock != block)
         {
-            Debug.Log($"[Player] a block doesn't exist in grabbedBlocks");
+            Debug.Log($"[Player] the block you tried to release is not grabbed");
             return;
         }
         block.SetGrabbedBy(null);
-        grabbingBlocks.Remove(block);
-        Debug.Log($"[Player] Released block in {block.GridPosition}");
+        grabbingBlock = null;
+        Debug.Log($"[Player] Released block in {block.GridPos}");
     }
 
-    private void OnGrabInput(InputAction.CallbackContext context)
+    private void OnGrabInput(InputAction.CallbackContext context)//input
     {
-        List<Block> ReleasedBlocks = new();
-        if (grabbingBlocks.Count > 0)
+        Block releasedBlock = null;
+        if (grabbingBlock != null)
         {
-            foreach (Block block in grabbingBlocks.ToList())
-            {
-                ReleaseBlock(block);
-                ReleasedBlocks.Add(block);
-            }
+            releasedBlock = grabbingBlock;
+            ReleaseBlock(releasedBlock);
         }
 
         // Directional grab: Use facing direction
-        Vector2Int faceDir = facing;
-        Vector2Int watchingPos = GridPosition + faceDir;
+        Vector2Int watchingPos = GridPos + FaceDir;
         Block watchingBlock = GridManager.Instance.GetBlockAt(watchingPos);
 
-        if (!ReleasedBlocks.Contains(watchingBlock)&&watchingBlock != null && watchingBlock.Team == Team && watchingBlock.GrabbingPlayer == null)
+        if (releasedBlock != watchingBlock && watchingBlock != null && watchingBlock.Team == Team && watchingBlock.GrabbingPlayer == null)
         {
             GrabBlock(watchingBlock);
         }
@@ -176,76 +169,73 @@ public class Player : GridOccupantBase
     /// <summary>
     /// Change the player's team and update any grabbed blocks' teams as well.
     /// </summary>
-    public void ChangeTeam(Team newTeam)
+    public void ChangeTeam(Team newTeam)//teammanager
     {
         Team = newTeam;
         Renderer.color = newTeam.TeamColor;
-        foreach (var block in grabbingBlocks)
-            block.SetTeam(newTeam);
+        grabbingBlock.Team = newTeam;
     }
 
-    public override string ToString() => $"Player({name}, {GridPosition})";
-
-    private bool CanMoveToWithBlock(Vector2Int target)
+    private bool CanMoveWithBlock(Vector2Int moveDir)//actionmove
     {
-        Vector2Int prevPlayerPos = GridPosition;
-        Vector2Int newPlayerPos = target;
-
-        Vector2Int moveDir = newPlayerPos - prevPlayerPos;
-
-        List<Vector2Int> prevBlockPosList = new();
-        List<Vector2Int> newBlockPosList = new();
-
-        foreach (var prevBlockPos in grabbingBlocks.Select(block => block.GridPosition).ToList())
+        if (grabbingBlock == null)
         {
-            prevBlockPosList.Add(prevBlockPos);
-            Vector2Int newBlockPos = prevBlockPos + moveDir;
-            newBlockPosList.Add(newBlockPos);
-        }
+            Vector2Int prevPlayerPos = GridPos;
+            Vector2Int newPlayerPos = GridPos + moveDir;
 
-        if (!prevBlockPosList.Contains(newPlayerPos) && GridManager.Instance.HasObstacleOccupants(newPlayerPos))
-        {
-            Debug.Log($"[Player] a player's move was blocked at {newPlayerPos}");
-            return false;
-        }
-
-        foreach (var newBlockPos in newBlockPosList)
-        {
-            if (newBlockPos != prevPlayerPos && !prevBlockPosList.Contains(newBlockPos) && GridManager.Instance.HasObstacleOccupants(newBlockPos))
+            if (GridManager.Instance.HasObstacleOccupants(newPlayerPos))
             {
-                Debug.Log(newBlockPos);
+                Debug.Log($"[Player] a player's move was blocked at {newPlayerPos}");
+                return false;
+            }
+            return true;
+        }
 
+        else
+        {
+            Vector2Int prevPlayerPos = GridPos;
+            Vector2Int newPlayerPos = GridPos + moveDir;
+
+            Vector2Int prevBlockPos = grabbingBlock.GridPos;
+            Vector2Int newBlockPos = grabbingBlock.GridPos + moveDir;
+
+            if (newPlayerPos != prevBlockPos && GridManager.Instance.HasObstacleOccupants(newPlayerPos))
+            {
+                Debug.Log($"[Player] a player's move was blocked at {newPlayerPos}");
+                return false;
+            }
+
+            if (newBlockPos != prevPlayerPos && GridManager.Instance.HasObstacleOccupants(newBlockPos))
+            {
                 Debug.Log($"[Player] a block's move was blocked at {newPlayerPos}");
                 return false;
             }
+            return true;
         }
-
-        return true;
-
     }
 
-    public void FaceTo(Vector2 dir)
+    public void FaceTo(Vector2 dir)//actionmove
     {
         if (dir == Vector2.zero) return;
 
         if (dir.x > 0 && dir.y == 0)
         {
-            facing = Vector2Int.right;
+            FaceDir = Vector2Int.right;
             transform.rotation = Quaternion.Euler(0, 0, 0);
         }
         else if (dir.x < 0 && dir.y == 0)
         {
-            facing = Vector2Int.left;
+            FaceDir = Vector2Int.left;
             transform.rotation = Quaternion.Euler(0, 0, 180);
         }
         else if (dir.y > 0 && dir.x == 0)
         {
-            facing = Vector2Int.up;
+            FaceDir = Vector2Int.up;
             transform.rotation = Quaternion.Euler(0, 0, 90);
         }
         else if (dir.y < 0 && dir.x == 0)
         {
-            facing = Vector2Int.down;
+            FaceDir = Vector2Int.down;
             transform.rotation = Quaternion.Euler(0, 0, 270);
         }
     }
